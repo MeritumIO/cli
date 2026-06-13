@@ -1,6 +1,6 @@
 {
   "name": "meritum/cli",
-  "description": "Module-first console kernel (Sage) for the Meritum ecosystem",
+  "description": "Module-first console kernel for the Meritum ecosystem",
   "type": "library",
   "authors": [
     {
@@ -35,8 +35,14 @@
     "sort-packages": true
   },
   "scripts": {
-    "test": ["vendor/bin/phpunit"],
-    "analyze": ["vendor/bin/phpstan"],
-    "phpcs": ["vendor/bin/phpcs"]
+    "test": [
+      "vendor/bin/phpunit"
+    ],
+    "analyze": [
+      "vendor/bin/phpstan"
+    ],
+    "phpcs": [
+      "vendor/bin/phpcs"
+    ]
   }
 }
