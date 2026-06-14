@@ -11,7 +11,6 @@ use Meritum\Cli\ExitCode;
 use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
-use Symfony\Component\Console\Input\InputInterface;
 
 final class CliAppModuleTest extends TestCase
 {
@@ -66,7 +65,7 @@ final class CliAppModuleTest extends TestCase
     {
         $kernel = new CliKernel(Environment::Testing);
         $kernel->define('test.command', fn () => new class implements CommandInterface {
-            public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode { return ExitCode::Success; }
+            public function __invoke(SageStyleInterface $io): ExitCode { return ExitCode::Success; }
             public function getName(): string { return 'test:command'; }
             public function getDescription(): string { return ''; }
             public function getHelp(): string { return ''; }

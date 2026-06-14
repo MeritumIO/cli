@@ -12,7 +12,6 @@ use Meritum\Cli\Output\SageStyle;
 use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\NullOutput;
 
 final class SymfonyCommandAdaptorTest extends TestCase
@@ -22,7 +21,7 @@ final class SymfonyCommandAdaptorTest extends TestCase
         return new class($overrides) implements CommandInterface {
             public function __construct(private readonly array $overrides) {}
 
-            public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+            public function __invoke(SageStyleInterface $io): ExitCode
             {
                 return $this->overrides['exitCode'] ?? ExitCode::Success;
             }
@@ -96,7 +95,7 @@ final class SymfonyCommandAdaptorTest extends TestCase
         $command = new class implements CommandInterface {
             public bool $invoked = false;
 
-            public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+            public function __invoke(SageStyleInterface $io): ExitCode
             {
                 $this->invoked = true;
                 return ExitCode::Success;
@@ -122,9 +121,9 @@ final class SymfonyCommandAdaptorTest extends TestCase
         $command = new class implements CommandInterface {
             public ?SageStyleInterface $receivedStyle = null;
 
-            public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+            public function __invoke(SageStyleInterface $io): ExitCode
             {
-                $this->receivedStyle = $output;
+                $this->receivedStyle = $io;
                 return ExitCode::Success;
             }
 

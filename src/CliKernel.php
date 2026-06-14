@@ -27,9 +27,16 @@ final class CliKernel extends Kernel implements CliKernelInterface
         parent::__construct($environment, $registrar, $debug);
 
         $this->name    = 'Sage';
-        $this->version = InstalledVersions::getVersion('meritum/cli') ?? 'dev';
+        $this->version = $this->getDefaultVersion();
 
         $this->addModule(new CliAppModule());
+    }
+
+    private function getDefaultVersion(): string
+    {
+        $version = InstalledVersions::getVersion('meritum/cli') ?? 'dev';
+
+        return (string) preg_replace('/\.0$/', '', $version);
     }
 
     private function throwIf(bool $condition, string $message): void
@@ -87,7 +94,7 @@ final class CliKernel extends Kernel implements CliKernelInterface
             if (null === $handler) {
                 throw $e;
             } else {
-                $handler->handle($e, $input, new SageStyle($input, $output));
+                $handler->handle($e, new SageStyle($input, $output));
 
                 $exitCode = ExitCode::Error->value;
             }

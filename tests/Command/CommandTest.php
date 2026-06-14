@@ -9,14 +9,13 @@ use Meritum\Cli\Command\Option;
 use Meritum\Cli\ExitCode;
 use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Console\Input\InputInterface;
 
 final class CommandTest extends TestCase
 {
     private function createCommand(): Command
     {
         return new class extends Command {
-            public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+            public function __invoke(SageStyleInterface $io): ExitCode
             {
                 return ExitCode::Success;
             }

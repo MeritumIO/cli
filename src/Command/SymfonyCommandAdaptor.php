@@ -41,8 +41,8 @@ final class SymfonyCommandAdaptor extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $style = new SageStyle($input, $output);
+        $io = new SageStyle($input, $output);
 
-        return ($this->command)($input, $style)->value;
+        return ($this->command)($io)->value;
     }
 }

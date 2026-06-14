@@ -75,19 +75,18 @@ Extend `Meritum\Cli\Command\Command` and implement `__invoke`:
 use Meritum\Cli\Command\Command;
 use Meritum\Cli\ExitCode;
 use Meritum\Cli\Output\SageStyleInterface;
-use Symfony\Component\Console\Input\InputInterface;
 
 final class CreateUserCommand extends Command
 {
     public function __construct(private readonly UserRepository $users) {}
 
-    public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+    public function __invoke(SageStyleInterface $io): ExitCode
     {
-        $email = $input->getArgument('email');
+        $email = $io->argument('email');
 
         $this->users->create($email);
 
-        $output->success("User {$email} created.");
+        $io->success("User {$email} created.");
 
         return ExitCode::Success;
     }
@@ -95,6 +94,26 @@ final class CreateUserCommand extends Command
 ```
 
 The constructor is reserved for real dependencies. All command metadata (name, description, arguments, options) is configured in the factory definition.
+
+### Reading Input
+
+`SageStyleInterface` exposes helpers for reading arguments and options:
+
+```php
+// Get a single argument (returns null if not provided, or $default if given)
+$io->argument('name');
+$io->argument('name', 'fallback');
+
+// Get all arguments as an associative array
+$io->arguments();
+
+// Get a single option (returns null if not provided, or $default if given)
+$io->option('format');
+$io->option('format', 'text');
+
+// Get all options as an associative array
+$io->options();
+```
 
 ### Arguments
 
@@ -130,11 +149,11 @@ $command->addOption('output')
 A command can invoke another command via `call()`. The kernel must be initialised (i.e. the command must be registered and the kernel booted) for this to work:
 
 ```php
-public function __invoke(InputInterface $input, SageStyleInterface $output): ExitCode
+public function __invoke(SageStyleInterface $io): ExitCode
 {
-    $this->call('cache:clear', $output);
+    $this->call('cache:clear', $io);
 
-    $this->call('cache:warm', $output, ['--env' => 'prod']);
+    $this->call('cache:warm', $io, ['--env' => 'prod']);
 
     return ExitCode::Success;
 }
@@ -149,13 +168,12 @@ Register an `ExceptionHandlerInterface` implementation to catch unhandled except
 ```php
 use Meritum\Cli\Exception\ExceptionHandlerInterface;
 use Meritum\Cli\Output\SageStyleInterface;
-use Symfony\Component\Console\Input\InputInterface;
 
 final class ConsoleExceptionHandler implements ExceptionHandlerInterface
 {
-    public function handle(\Throwable $e, InputInterface $input, SageStyleInterface $output): void
+    public function handle(\Throwable $e, SageStyleInterface $io): void
     {
-        $output->error($e->getMessage());
+        $io->error($e->getMessage());
     }
 }
 ```

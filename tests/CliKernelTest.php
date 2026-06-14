@@ -12,7 +12,6 @@ use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\NullOutput;
 
 final class CliKernelTest extends TestCase
@@ -126,7 +125,7 @@ final class CliKernelTest extends TestCase
         $handler = new class implements ExceptionHandlerInterface {
             public ?Throwable $caught = null;
 
-            public function handle(Throwable $e, InputInterface $input, SageStyleInterface $output): void
+            public function handle(Throwable $e, SageStyleInterface $io): void
             {
                 $this->caught = $e;
             }
@@ -145,7 +144,7 @@ final class CliKernelTest extends TestCase
     {
         $kernel = $this->createKernel();
         $kernel->define(ExceptionHandlerInterface::class, fn () => new class implements ExceptionHandlerInterface {
-            public function handle(Throwable $e, InputInterface $input, SageStyleInterface $output): void {}
+            public function handle(Throwable $e, SageStyleInterface $io): void {}
         })->share();
         $kernel->boot();
 
