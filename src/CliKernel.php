@@ -10,6 +10,8 @@ use Meritum\Cli\Output\SageStyle;
 use Meritum\Cli\Module\CliAppModule;
 use Georgeff\Kernel\KernelException;
 use Georgeff\Kernel\ServiceRegistrar;
+use Meritum\Cli\Command\CommandInterface;
+use Georgeff\Kernel\DI\TagRegistryInterface;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Input\InputInterface;
@@ -72,6 +74,16 @@ final class CliKernel extends Kernel implements CliKernelInterface
     public function getVersion(): string
     {
         return $this->version;
+    }
+
+    public function find(string $command): ?CommandInterface
+    {
+        /** @var CommandInterface[] */
+        $commands = $this->getContainer()
+                         ->get(TagRegistryInterface::class)
+                         ->getTagged(CliKernelOption::CommandTag->value);
+
+        return array_find($commands, fn($c) => $command === $c->getName() || in_array($command, $c->getAliases(), true));
     }
 
     public function handle(?InputInterface $input = null, ?OutputInterface $output = null): int

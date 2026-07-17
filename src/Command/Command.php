@@ -6,6 +6,7 @@ use Meritum\Cli\CliKernelInterface;
 use Meritum\Cli\Output\SageStyleInterface;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+use Meritum\Cli\Exception\CommandNotFoundException;
 
 abstract class Command implements CommandInterface
 {
@@ -43,11 +44,13 @@ abstract class Command implements CommandInterface
             throw new \LogicException('Cannot call another command before the kernel has been initialized');
         }
 
-        $parameters['command'] = $command;
+        $instance = $this->kernel->find($command);
 
-        $output ??= new NullOutput();
+        if (null === $instance) {
+            throw new CommandNotFoundException("Command [$command] was not found");
+        }
 
-        return $this->kernel->handle(new ArrayInput($parameters), $output);
+        return new SymfonyCommandAdaptor($instance)->run(new ArrayInput($parameters), $output ?? new NullOutput());
     }
 
     public function getName(): string

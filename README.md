@@ -161,6 +161,18 @@ public function __invoke(SageStyleInterface $io): ExitCode
 
 If no output is passed, the sub-command's output is discarded. The return value is the sub-command's exit code.
 
+`call()` resolves the target command directly via `CliKernelInterface::find()` and runs it — it does not re-dispatch through the full `Application`. If no command matches the given name or alias, it throws `Meritum\Cli\Exception\CommandNotFoundException`.
+
+### Finding Commands
+
+`CliKernelInterface::find(string $command): ?CommandInterface` looks up a registered command by name or alias, returning `null` if none match:
+
+```php
+$command = $kernel->find('cache:clear');
+```
+
+The kernel must be booted before calling `find()`.
+
 ## Exception Handling
 
 Register an `ExceptionHandlerInterface` implementation to catch unhandled exceptions thrown during dispatch. Without one, exceptions propagate to the caller.

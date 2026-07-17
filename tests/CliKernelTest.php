@@ -7,6 +7,9 @@ use Georgeff\Kernel\Environment;
 use Georgeff\Kernel\KernelException;
 use Meritum\Cli\CliKernel;
 use Meritum\Cli\CliKernelInterface;
+use Meritum\Cli\CliKernelOption;
+use Meritum\Cli\Command\CommandInterface;
+use Meritum\Cli\ExitCode;
 use Meritum\Cli\Exception\ExceptionHandlerInterface;
 use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
@@ -27,6 +30,26 @@ final class CliKernelTest extends TestCase
         $kernel->boot();
 
         return $kernel;
+    }
+
+    /**
+     * @param string[] $aliases
+     */
+    private function createStubCommand(string $name, array $aliases = []): CommandInterface
+    {
+        return new class ($name, $aliases) implements CommandInterface {
+            public function __construct(private string $name, private array $aliases) {}
+
+            public function __invoke(SageStyleInterface $io): ExitCode { return ExitCode::Success; }
+            public function getName(): string { return $this->name; }
+            public function getDescription(): string { return ''; }
+            public function getHelp(): string { return ''; }
+            public function getAliases(): array { return $this->aliases; }
+            public function isHidden(): bool { return false; }
+            public function getArguments(): array { return []; }
+            public function getOptions(): array { return []; }
+            public function setKernel(CliKernelInterface $kernel): static { return $this; }
+        };
     }
 
     public function test_implements_cli_kernel_interface(): void
@@ -81,6 +104,33 @@ final class CliKernelTest extends TestCase
         $this->expectException(KernelException::class);
 
         $this->createBootedKernel()->setVersion('2.0.0');
+    }
+
+    public function test_find_returns_command_by_name(): void
+    {
+        $kernel = $this->createKernel();
+        $target = $this->createStubCommand('test:command');
+        $kernel->define('test.command', fn () => $target)->tag(CliKernelOption::CommandTag->value);
+        $kernel->boot();
+
+        $this->assertSame($target, $kernel->find('test:command'));
+    }
+
+    public function test_find_returns_command_by_alias(): void
+    {
+        $kernel = $this->createKernel();
+        $target = $this->createStubCommand('test:command', ['tc']);
+        $kernel->define('test.command', fn () => $target)->tag(CliKernelOption::CommandTag->value);
+        $kernel->boot();
+
+        $this->assertSame($target, $kernel->find('tc'));
+    }
+
+    public function test_find_returns_null_when_command_not_registered(): void
+    {
+        $kernel = $this->createBootedKernel();
+
+        $this->assertNull($kernel->find('nonexistent'));
     }
 
     public function test_handle_throws_when_not_booted(): void

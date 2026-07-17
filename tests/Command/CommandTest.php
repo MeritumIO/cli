@@ -7,6 +7,7 @@ use Meritum\Cli\Command\Argument;
 use Meritum\Cli\Command\Command;
 use Meritum\Cli\Command\Option;
 use Meritum\Cli\ExitCode;
+use Meritum\Cli\Exception\CommandNotFoundException;
 use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -247,15 +248,37 @@ final class CommandTest extends TestCase
         $this->createCommand()->call('other:command');
     }
 
-    public function test_call_returns_exit_code_from_kernel(): void
+    public function test_call_returns_exit_code_from_found_command(): void
     {
+        $target = new class extends Command {
+            public function __invoke(SageStyleInterface $io): ExitCode
+            {
+                return ExitCode::Error;
+            }
+        };
+        $target->setName('other:command');
+
         $kernel = $this->createKernel();
-        $kernel->method('handle')->willReturn(42);
+        $kernel->method('find')->with('other:command')->willReturn($target);
 
         $command = $this->createCommand();
         $command->setName('test:command');
         $command->setKernel($kernel);
 
-        $this->assertSame(42, $command->call('other:command'));
+        $this->assertSame(ExitCode::Error->value, $command->call('other:command'));
+    }
+
+    public function test_call_throws_when_command_not_found(): void
+    {
+        $kernel = $this->createKernel();
+        $kernel->method('find')->willReturn(null);
+
+        $command = $this->createCommand();
+        $command->setName('test:command');
+        $command->setKernel($kernel);
+
+        $this->expectException(CommandNotFoundException::class);
+
+        $command->call('other:command');
     }
 }
