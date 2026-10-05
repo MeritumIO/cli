@@ -5,18 +5,19 @@ namespace Meritum\Cli;
 use Throwable;
 use Georgeff\Kernel\Kernel;
 use Composer\InstalledVersions;
-use Georgeff\Kernel\Environment;
 use Meritum\Cli\Output\SageStyle;
-use Meritum\Cli\Module\CliAppModule;
-use Georgeff\Kernel\KernelException;
-use Georgeff\Kernel\ServiceRegistrar;
-use Meritum\Cli\Command\CommandInterface;
-use Georgeff\Kernel\DI\TagRegistryInterface;
+use Meritum\Cli\Command\CommandDefinition;
+use Symfony\Component\Console\Application;
+use Meritum\Cli\Command\SymfonyCommandAdaptor;
+use Georgeff\Kernel\Exception\KernelException;
 use Symfony\Component\Console\Input\ArgvInput;
+use Georgeff\Kernel\Contract\EnvironmentInterface;
+use Meritum\Cli\Command\CommandDefinitionInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Input\InputInterface;
-use Meritum\Cli\Exception\ExceptionHandlerInterface;
+use Meritum\Cli\Contract\ExceptionHandlerInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Georgeff\Kernel\Contract\ContainerBuilderInterface;
 
 final class CliKernel extends Kernel implements CliKernelInterface
 {
@@ -24,14 +25,35 @@ final class CliKernel extends Kernel implements CliKernelInterface
 
     private string $version;
 
-    public function __construct(Environment $environment, ?ServiceRegistrar $registrar = null, bool $debug = false)
+    /**
+     * @var array<string, CommandDefinition>
+     */
+    private array $commands = [];
+
+    private ?Application $app = null;
+
+    public function __construct(EnvironmentInterface $environment, ?ContainerBuilderInterface $builder = null, bool $debug = false)
     {
-        parent::__construct($environment, $registrar, $debug);
+        parent::__construct($environment, $builder, $debug);
 
         $this->name    = 'Sage';
         $this->version = $this->getDefaultVersion();
+    }
 
-        $this->addModule(new CliAppModule());
+    private function createApplication(): Application
+    {
+        $app = new Application($this->name, $this->version);
+
+        $app->setAutoExit(false);
+        $app->setCatchExceptions(false);
+
+        foreach ($this->commands as $command) {
+            $app->addCommand(new SymfonyCommandAdaptor($command, $this->getContainer()));
+        }
+
+        $this->commands = [];
+
+        return $app;
     }
 
     private function getDefaultVersion(): string
@@ -41,16 +63,9 @@ final class CliKernel extends Kernel implements CliKernelInterface
         return (string) preg_replace('/\.0$/', '', $version);
     }
 
-    private function throwIf(bool $condition, string $message): void
-    {
-        if ($condition) {
-            throw new KernelException($message);
-        }
-    }
-
     public function setName(string $name): static
     {
-        $this->throwIf($this->isBooted(), 'Kernel has already been booted, cannot set the name parameter');
+        KernelException::throwIf($this->isBooted(), 'Kernel has already been booted, cannot set the name parameter');
 
         $this->name = $name;
 
@@ -64,7 +79,7 @@ final class CliKernel extends Kernel implements CliKernelInterface
 
     public function setVersion(string $version): static
     {
-        $this->throwIf($this->isBooted(), 'Kernel has already been booted, cannot set the version parameter');
+        KernelException::throwIf($this->isBooted(), 'Kernel has already been booted, cannot set the version parameter');
 
         $this->version = $version;
 
@@ -76,30 +91,30 @@ final class CliKernel extends Kernel implements CliKernelInterface
         return $this->version;
     }
 
-    public function find(string $command): ?CommandInterface
+    public function addCommand(string $name, string $id, callable $factory): CommandDefinitionInterface
     {
-        /** @var CommandInterface[] */
-        $commands = $this->getContainer()
-                         ->get(TagRegistryInterface::class)
-                         ->getTagged(CliKernelOption::CommandTag->value);
+        KernelException::throwIf(isset($this->commands[$name]), "Command with name [$name] has already been registered");
 
-        return array_find($commands, fn($c) => $command === $c->getName() || in_array($command, $c->getAliases(), true));
+        $this->define($id, $factory);
+
+        return $this->commands[$name] = new CommandDefinition($name, $id);
     }
 
     public function handle(?InputInterface $input = null, ?OutputInterface $output = null): int
     {
-        $this->throwIf($this->isShutdown(), 'Kernel is shutdown');
+        KernelException::throwIf($this->isShutdown(), 'Kernel is shutdown');
 
-        $this->throwIf(!$this->isBooted(), 'Kernel is not booted, cannot call handle');
+        KernelException::throwIf(!$this->isBooted(), 'Kernel is not booted, cannot call handle');
+
+        if (null === $this->app) {
+            $this->app = $this->createApplication();
+        }
 
         $input  ??= new ArgvInput();
         $output ??= new ConsoleOutput();
 
-        /** @var \Symfony\Component\Console\Application $app */
-        $app = $this->getContainer()->get('cli.app');
-
         try {
-            $exitCode = $app->run($input, $output);
+            $exitCode = $this->app->run($input, $output);
         } catch (Throwable $e) {
             $handler = $this->getExceptionHandler();
 
@@ -117,7 +132,13 @@ final class CliKernel extends Kernel implements CliKernelInterface
 
     public function run(): int
     {
-        return $this->handle();
+        $this->boot();
+
+        $status = $this->handle();
+
+        $this->shutdown();
+
+        return $status;
     }
 
     private function getExceptionHandler(): ?ExceptionHandlerInterface

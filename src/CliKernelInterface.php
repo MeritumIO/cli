@@ -2,10 +2,11 @@
 
 namespace Meritum\Cli;
 
-use Meritum\Cli\Command\CommandInterface;
-use Georgeff\Kernel\RunnableKernelInterface;
+use Psr\Container\ContainerInterface;
+use Meritum\Cli\Command\CommandDefinitionInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Georgeff\Kernel\Contract\RunnableKernelInterface;
 
 interface CliKernelInterface extends RunnableKernelInterface
 {
@@ -17,7 +18,10 @@ interface CliKernelInterface extends RunnableKernelInterface
 
     public function getVersion(): string;
 
-    public function find(string $command): ?CommandInterface;
+    /**
+     * @param callable(ContainerInterface): mixed $factory
+     */
+    public function addCommand(string $name, string $id, callable $factory): CommandDefinitionInterface;
 
     public function handle(?InputInterface $input = null, ?OutputInterface $output = null): int;
 }

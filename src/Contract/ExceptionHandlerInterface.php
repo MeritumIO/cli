@@ -1,6 +1,6 @@
 <?php
 
-namespace Meritum\Cli\Exception;
+namespace Meritum\Cli\Contract;
 
 use Throwable;
 use Meritum\Cli\Output\SageStyleInterface;

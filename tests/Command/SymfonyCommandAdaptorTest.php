@@ -2,151 +2,160 @@
 
 namespace Meritum\Cli\Test\Command;
 
-use Meritum\Cli\CliKernelInterface;
-use Meritum\Cli\Command\Argument;
-use Meritum\Cli\Command\CommandInterface;
-use Meritum\Cli\Command\Option;
-use Meritum\Cli\Command\SymfonyCommandAdaptor;
 use Meritum\Cli\ExitCode;
 use Meritum\Cli\Output\SageStyle;
-use Meritum\Cli\Output\SageStyleInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use Meritum\Cli\Command\CommandInterface;
+use Meritum\Cli\Command\CommandDefinition;
+use Meritum\Cli\Output\SageStyleInterface;
+use Meritum\Cli\Command\SymfonyCommandAdaptor;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 final class SymfonyCommandAdaptorTest extends TestCase
 {
-    private function createCommand(array $overrides = []): CommandInterface
+    private function createDefinition(): CommandDefinition
     {
-        return new class($overrides) implements CommandInterface {
-            public function __construct(private readonly array $overrides) {}
+        return new CommandDefinition('test:command', 'test.command');
+    }
+
+    private function createContainer(mixed $service): ContainerInterface
+    {
+        $container = $this->createMock(ContainerInterface::class);
+        $container->method('get')->with('test.command')->willReturn($service);
+
+        return $container;
+    }
+
+    private function createCommand(ExitCode $exitCode = ExitCode::Success): CommandInterface
+    {
+        return new class ($exitCode) implements CommandInterface {
+            public ?SageStyleInterface $io = null;
+
+            public function __construct(private readonly ExitCode $exitCode) {}
 
             public function __invoke(SageStyleInterface $io): ExitCode
             {
-                return $this->overrides['exitCode'] ?? ExitCode::Success;
-            }
+                $this->io = $io;
 
-            public function getName(): string { return $this->overrides['name'] ?? 'test:command'; }
-            public function getDescription(): string { return $this->overrides['description'] ?? 'Test description'; }
-            public function getHelp(): string { return $this->overrides['help'] ?? 'Test help'; }
-            public function getAliases(): array { return $this->overrides['aliases'] ?? []; }
-            public function isHidden(): bool { return $this->overrides['hidden'] ?? false; }
-            public function getArguments(): array { return $this->overrides['arguments'] ?? []; }
-            public function getOptions(): array { return $this->overrides['options'] ?? []; }
-            public function setKernel(CliKernelInterface $kernel): static { return $this; }
+                return $this->exitCode;
+            }
         };
+    }
+
+    private function createAdaptor(CommandDefinition $definition): SymfonyCommandAdaptor
+    {
+        return new SymfonyCommandAdaptor($definition, $this->createStub(ContainerInterface::class));
     }
 
     public function test_configure_sets_name(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand(['name' => 'foo:bar']));
-
-        $this->assertSame('foo:bar', $adaptor->getName());
+        $this->assertSame('test:command', $this->createAdaptor($this->createDefinition())->getName());
     }
 
     public function test_configure_sets_description(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand(['description' => 'Does something useful']));
+        $adaptor = $this->createAdaptor($this->createDefinition()->description('Does something useful'));
 
         $this->assertSame('Does something useful', $adaptor->getDescription());
     }
 
     public function test_configure_sets_help(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand(['help' => 'Extended help text']));
+        $adaptor = $this->createAdaptor($this->createDefinition()->help('Extended help text'));
 
         $this->assertSame('Extended help text', $adaptor->getHelp());
     }
 
     public function test_configure_sets_aliases(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand(['aliases' => ['fb', 'foobar']]));
+        $adaptor = $this->createAdaptor($this->createDefinition()->alias('tc')->alias('tcommand'));
 
-        $this->assertSame(['fb', 'foobar'], $adaptor->getAliases());
+        $this->assertSame(['tc', 'tcommand'], $adaptor->getAliases());
     }
 
     public function test_configure_sets_hidden(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand(['hidden' => true]));
+        $adaptor = $this->createAdaptor($this->createDefinition()->hide());
 
         $this->assertTrue($adaptor->isHidden());
     }
 
     public function test_configure_sets_arguments(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand([
-            'arguments' => [Argument::make('target')],
-        ]));
+        $definition = $this->createDefinition();
+        $definition->argument('target');
 
-        $this->assertTrue($adaptor->getDefinition()->hasArgument('target'));
+        $this->assertTrue($this->createAdaptor($definition)->getDefinition()->hasArgument('target'));
     }
 
     public function test_configure_sets_options(): void
     {
-        $adaptor = new SymfonyCommandAdaptor($this->createCommand([
-            'options' => [Option::make('force')->shortcut('f')],
-        ]));
+        $definition = $this->createDefinition();
+        $definition->option('force')->shortcut('f');
 
-        $this->assertTrue($adaptor->getDefinition()->hasOption('force'));
+        $this->assertTrue($this->createAdaptor($definition)->getDefinition()->hasOption('force'));
     }
 
-    public function test_execute_delegates_to_invoke(): void
+    public function test_constructing_does_not_resolve_command(): void
     {
-        $command = new class implements CommandInterface {
-            public bool $invoked = false;
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects($this->never())->method('get');
 
-            public function __invoke(SageStyleInterface $io): ExitCode
-            {
-                $this->invoked = true;
-                return ExitCode::Success;
-            }
+        new SymfonyCommandAdaptor($this->createDefinition(), $container);
+    }
 
-            public function getName(): string { return 'test:command'; }
-            public function getDescription(): string { return ''; }
-            public function getHelp(): string { return ''; }
-            public function getAliases(): array { return []; }
-            public function isHidden(): bool { return false; }
-            public function getArguments(): array { return []; }
-            public function getOptions(): array { return []; }
-            public function setKernel(CliKernelInterface $kernel): static { return $this; }
-        };
+    public function test_execute_resolves_command_from_container_by_id(): void
+    {
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects($this->once())
+                  ->method('get')
+                  ->with('test.command')
+                  ->willReturn($this->createCommand());
 
-        (new SymfonyCommandAdaptor($command))->run(new ArrayInput([]), new NullOutput());
-
-        $this->assertTrue($command->invoked);
+        (new SymfonyCommandAdaptor($this->createDefinition(), $container))->run(new ArrayInput([]), new NullOutput());
     }
 
     public function test_execute_passes_sage_style_to_invoke(): void
     {
-        $command = new class implements CommandInterface {
-            public ?SageStyleInterface $receivedStyle = null;
+        $command = $this->createCommand();
 
-            public function __invoke(SageStyleInterface $io): ExitCode
-            {
-                $this->receivedStyle = $io;
-                return ExitCode::Success;
-            }
+        (new SymfonyCommandAdaptor($this->createDefinition(), $this->createContainer($command)))
+            ->run(new ArrayInput([]), new NullOutput());
 
-            public function getName(): string { return 'test:command'; }
-            public function getDescription(): string { return ''; }
-            public function getHelp(): string { return ''; }
-            public function getAliases(): array { return []; }
-            public function isHidden(): bool { return false; }
-            public function getArguments(): array { return []; }
-            public function getOptions(): array { return []; }
-            public function setKernel(CliKernelInterface $kernel): static { return $this; }
-        };
-
-        (new SymfonyCommandAdaptor($command))->run(new ArrayInput([]), new NullOutput());
-
-        $this->assertInstanceOf(SageStyle::class, $command->receivedStyle);
+        $this->assertInstanceOf(SageStyle::class, $command->io);
     }
 
     public function test_execute_returns_exit_code_value_from_invoke(): void
     {
-        $exitCode = (new SymfonyCommandAdaptor($this->createCommand(['exitCode' => ExitCode::Error])))
+        $exitCode = (new SymfonyCommandAdaptor($this->createDefinition(), $this->createContainer($this->createCommand(ExitCode::Error))))
             ->run(new ArrayInput([]), new NullOutput());
 
         $this->assertSame(ExitCode::Error->value, $exitCode);
+    }
+
+    public function test_execute_throws_when_service_is_not_a_command(): void
+    {
+        $adaptor = new SymfonyCommandAdaptor($this->createDefinition(), $this->createContainer(new \stdClass()));
+
+        $this->expectException(\RuntimeException::class);
+
+        $adaptor->run(new ArrayInput([]), new NullOutput());
+    }
+
+    public function test_execute_exposes_arguments_and_options_to_command(): void
+    {
+        $definition = $this->createDefinition();
+        $definition->argument('target');
+        $definition->option('format')->required();
+
+        $command = $this->createCommand();
+
+        (new SymfonyCommandAdaptor($definition, $this->createContainer($command)))
+            ->run(new ArrayInput(['target' => 'foo', '--format' => 'json']), new NullOutput());
+
+        $this->assertSame('foo', $command->io?->argument('target'));
+        $this->assertSame('json', $command->io?->option('format'));
     }
 }
